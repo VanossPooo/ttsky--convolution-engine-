@@ -9,5 +9,6 @@ module convolution_engine (
     	input  wire       rst_n );    // reset_n - low to reset
 
 
-
+Buffer U1 ();
+Convolution U2 ();
 
