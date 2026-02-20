@@ -8,6 +8,13 @@ module convolution_engine (
     	input  wire       clk,      // clock
     	input  wire       rst_n );    // reset_n - low to reset
 
+wire [71:0] matrix, convolution;
+wire conv_valid;
 
+// instantiate modules
+Buffer u1 (.clock(clk), .inNum(ui_in), .ena(ena), .reset(rst_n), .matrix(matrix), .conv_valid(conv_valid));
+convolve u2 (.interval(matrix), .clk(clk), .resetn(rst_n), .ena(conv_valid), .convolution(convolution));
 
+assign uo_out = convolution;
 
+endmodule
