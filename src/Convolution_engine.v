@@ -1,4 +1,9 @@
 module convolution_engine (
+	`ifdef GL_TEST
+      .VPWR(VPWR),
+      .VGND(VGND),
+	`endif
+
 	input  wire [7:0] ui_in,    // Number to be put in matrix
     	output wire [7:0] uo_out,   // Dedicated outputs
     	input  wire [7:0] uio_in,   // Size
