@@ -3,7 +3,7 @@ module Buffer (clock, inNum, ena, reset, matrix, conv_valid);
     input reset;    
     input ena;     
     input  [7:0] inNum;
-    output [71:0] matrix;
+    output [7:0] matrix [0:8];
     output conv_valid;
     parameter W = 128;      
 
@@ -39,7 +39,7 @@ module Buffer (clock, inNum, ena, reset, matrix, conv_valid);
     assign conv_valid = (row_cnt >= 1) && (col_cnt >= 1);
 
     // pack the matrix
-    assign matrix = { r00,r01,r02,
+    assign matrix = '{ r00,r01,r02,
                       r10,r11,r12,
                       r20,r21,r22 };
 
@@ -61,7 +61,6 @@ module Buffer (clock, inNum, ena, reset, matrix, conv_valid);
             r00 <= r01;  r01 <= r02;  r02 <= top_pixel;
             r10 <= r11;  r11 <= r12;  r12 <= mid_pixel;
             r20 <= r21;  r21 <= r22;  r22 <= bot_pixel;
-	end
             //update line buffers at current column 
             lb0[col_cnt] <= lb1[col_cnt];
             lb1[col_cnt] <= inNum;
@@ -77,5 +76,6 @@ module Buffer (clock, inNum, ena, reset, matrix, conv_valid);
             end else begin
                 col_cnt <= col_cnt + 7'd1;
             end
-        end
+	    end
+    end
 endmodule

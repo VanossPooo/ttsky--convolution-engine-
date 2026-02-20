@@ -1,6 +1,6 @@
 module convolve (
     input wire signed [7:0] interval [8:0],
-    input wire clk, resetn,
+    input wire clk, resetn, ena,
     output reg [7:0] convolution // max: 255, min: 0
 );
     // get selected kernel from mux
@@ -13,7 +13,7 @@ module convolve (
     always @(posedge clk) begin
         if (!resetn) begin
             product <= '{0, 0, 0, 0, 0, 0, 0, 0, 0};
-        end else begin
+        end else if (ena) begin
             integer k;
             for (k = 0; k < 9; k = k + 1) begin
                 product[k] <= kernel[k]*interval[k];
@@ -42,9 +42,10 @@ module convolve (
 
 endmodule
 
+
 module kernelMux (
-    input wire [1:0] kernelSelect;
-    output reg signed[7:0] kernel [8:0];
+    input wire [1:0] kernelSelect,
+    output reg signed[7:0] kernel [8:0]
 );
     // define kernels
     localparam signed [7:0] sobelKernelX [8:0] = '{-1, 0, 1, -2, 0, 2, -1, 0, 1};
