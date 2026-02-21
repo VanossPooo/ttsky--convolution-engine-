@@ -21,9 +21,10 @@ module Buffer (clock, inNum, ena, reset, matrix, conv_valid);
 
     //extracting the pixel to insert into the matrix
     wire at_last_col = (col_cnt == W-1);
+    wire at_last_row = (row_cnt >= H-1);
 
 
-    //not at last col (right side padding) and row count >=2 use the line buffer, else its 0
+    //not at last col/row (right/bottom side padding) and row count >=2 use the line buffer, else its 0
     wire [7:0] top_pixel =
     (!at_last_col && row_cnt >= 2) ? lb0[col_cnt] : 8'd0;
 
@@ -31,7 +32,7 @@ module Buffer (clock, inNum, ena, reset, matrix, conv_valid);
     (!at_last_col && row_cnt >= 1) ? lb1[col_cnt] : 8'd0;
 
     wire [7:0] bot_pixel =
-    at_last_col ? 8'd0 : inNum;
+    (at_last_col || at_last_row) ? 8'd0 : inNum;
     
    
 
@@ -60,7 +61,7 @@ module Buffer (clock, inNum, ena, reset, matrix, conv_valid);
         end else if (ena) begin // shift left
             r00 <= r01;  r01 <= r02;  r02 <= top_pixel;
             r10 <= r11;  r11 <= r12;  r12 <= mid_pixel;
-            r20 <= r21;  r21 <= r22;  r22 <= inNum;
+            r20 <= r21;  r21 <= r22;  r22 <= bot_pixel;
 	end
             //update line buffers at current column 
             lb0[col_cnt] <= lb1[col_cnt];

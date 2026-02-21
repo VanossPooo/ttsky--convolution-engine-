@@ -1,81 +1,114 @@
-module Buffer (clock, inNum, ena, reset, matrix, conv_valid);
-    input clock;
-    input reset;    
-    input ena;     
-    input  [7:0] inNum;
-    output [71:0] matrix;
-    output conv_valid;
-    parameter W = 128;      
+module Buffer (
+    input        clock,
+    input        reset,    
+    input        ena,
+    input  [7:0]  inNum,
+    output [71:0] matrix,
+    output        conv_valid
+);
 
-    // column/row count
-    reg [6:0] col_cnt;
-    reg [6:0] row_cnt;
+    parameter W = 128;
+    parameter H = 128;
 
-    // two line buffers 
-    reg [7:0] lb0 [0:W-1];  // 1st row
-    reg [7:0] lb1 [0:W-1];  // 2nd row
+    // Row and Col count
+    reg [7:0] col_cnt;  
+    reg [7:0] row_cnt;   
 
-    reg [7:0] r00, r01, r02;  // top
-    reg [7:0] r10, r11, r12;  // mid
-    reg [7:0] r20, r21, r22;  // bottom 
+    // States for padding
+    reg pad_col;         // 1 = extra right-pad column 
+    reg pad_row;         // 1 = extra bottom-pad row 
 
-    //extracting the pixel to insert into the matrix
-    wire at_last_col = (col_cnt == W-1);
+    // Two line buffers (store REAL pixels only)
+    reg [7:0] lb0 [0:W-1];  //top
+    reg [7:0] lb1 [0:W-1]; //middle
 
+    // 3x3 window regs
+    reg [7:0] r00, r01, r02;
+    reg [7:0] r10, r11, r12;
+    reg [7:0] r20, r21, r22;
 
-    //not at last col (right side padding) and row count >=2 use the line buffer, else its 0
-    wire [7:0] top_pixel =
-    (!at_last_col && row_cnt >= 2) ? lb0[col_cnt] : 8'd0;
+    // During pad_col, we must not index out-of-range, so use W-1
+    wire [7:0] col_idx = pad_col ? (W-1) : col_cnt;
 
-    wire [7:0] mid_pixel =
-    (!at_last_col && row_cnt >= 1) ? lb1[col_cnt] : 8'd0;
+    // Top/mid come from previous rows (or 0 for top padding)
+    wire [7:0] top_pixel = (row_cnt >= 2) ? lb0[col_idx] : 8'd0;
+    wire [7:0] mid_pixel = (row_cnt >= 1) ? lb1[col_idx] : 8'd0;
 
-    wire [7:0] bot_pixel =
-    at_last_col ? 8'd0 : inNum;
-    
-   
-
-    // valid once we have 3 rows and 3 cols (with padding)
-    assign conv_valid = (row_cnt >= 1) && (col_cnt >= 1);
+    // during pad_col: insert 0 (right padding column)
+    // during pad_row: insert 0 (bottom padding row)
+    // otherwise: insert real input pixel
+    wire [7:0] bot_insert = (pad_col || pad_row) ? 8'd0 : inNum;
 
     // pack the matrix
     assign matrix = { r00,r01,r02,
                       r10,r11,r12,
                       r20,r21,r22 };
 
+   //valid once we have at least 2 rows and cols loaded
+    assign conv_valid = (row_cnt >= 1) && ( (col_cnt >= 1) || pad_col );
+
     integer i;
+
     always @(posedge clock or negedge reset) begin
         if (!reset) begin
-            col_cnt <= 7'd0;
-            row_cnt <= 7'd0;
+            col_cnt <= 0;
+            row_cnt <= 0;
+            pad_col <= 1'b0;
+            pad_row <= 1'b0;
 
-            r00 <= 8'd0; r01 <= 8'd0; r02 <= 8'd0;
-            r10 <= 8'd0; r11 <= 8'd0; r12 <= 8'd0;
-            r20 <= 8'd0; r21 <= 8'd0; r22 <= 8'd0;
+            r00 <= 0; r01 <= 0; r02 <= 0;
+            r10 <= 0; r11 <= 0; r12 <= 0;
+            r20 <= 0; r21 <= 0; r22 <= 0;
 
             for (i = 0; i < W; i = i + 1) begin
-                lb0[i] <= 8'd0;
-                lb1[i] <= 8'd0;
+                lb0[i] <= 0;
+                lb1[i] <= 0;
             end
-        end else if (ena) begin // shift left
+
+        end else if (ena) begin
+            // shift left and insert right 
             r00 <= r01;  r01 <= r02;  r02 <= top_pixel;
             r10 <= r11;  r11 <= r12;  r12 <= mid_pixel;
-            r20 <= r21;  r21 <= r22;  r22 <= bot_pixel;
-	end
-            //update line buffers at current column 
-            lb0[col_cnt] <= lb1[col_cnt];
-            lb1[col_cnt] <= inNum;
+            r20 <= r21;  r21 <= r22;  r22 <= bot_insert;
 
-            if (col_cnt == (W-1)) begin
-                col_cnt <= 7'd0;
-                row_cnt <= row_cnt + 7'd1;
+            // Update line buffers ONLY on real pixels
+            if (!pad_col && !pad_row) begin
+                lb0[col_cnt] <= lb1[col_cnt];
+                lb1[col_cnt] <= inNum;
+            end
 
-                // reset the matrix when moving onto new row
-                r00 <= 8'd0; r01 <= 8'd0;
-                r10 <= 8'd0; r11 <= 8'd0;
-                r20 <= 8'd0; r21 <= 8'd0;
+            if (!pad_col) begin
+                if (col_cnt == (W-1)) begin
+                    // at last col, enable padding
+                    pad_col <= 1'b1;
+                end else begin
+                    col_cnt <= col_cnt + 1;
+                end
             end else begin
-                col_cnt <= col_cnt + 7'd1;
+                // if this was the padding cycle, reset 
+                pad_col <= 1'b0;
+                col_cnt <= 0;
+
+                if (!pad_row) begin
+                    if (row_cnt == (H-1)) begin
+                        // enable row padding at last row
+                        pad_row <= 1'b1;
+                        row_cnt <= row_cnt + 1; 
+                    end else begin
+                        row_cnt <= row_cnt + 1;
+                    end
+                end else begin
+                    // reset if this was the row padding cycle
+                    pad_row <= 1'b0;
+                    row_cnt <= 0;
+                end
+
+                // Reset for new matrix (also help left padding)
+                r00 <= 0; r01 <= 0;
+                r10 <= 0; r11 <= 0;
+                r20 <= 0; r21 <= 0;
             end
         end
+    end
+
 endmodule
