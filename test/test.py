@@ -24,7 +24,7 @@ async def test_project(dut):
     dut.rst_n.value = 1
 
     dut._log.info("Loading image...")
-    img = Image.open("128x128_goku.png").convert("L") # "L" means 8-bit grayscale
+    img = Image.open("128x128_sunset.png").convert("L") # "L" means 8-bit grayscale
     img.save("grayscale_input_test.png")
     width, height = img.size
     pixels = list(img.getdata()) # This makes a giant 1D list of pixel values
@@ -39,9 +39,6 @@ async def test_project(dut):
                 output_pixels.append(output_int)
         dut.ui_in.value = 0
         await ClockCycles(dut.clk, 1)
-        if dut.uo_out.value[0] == 1:
-                output_int = dut.uo_out.value.integer
-                output_pixels.append(output_int)
 
 
     dut._log.info("Saving image...")
